@@ -34,6 +34,7 @@
       <div class="mini-item">💻<span>Tech</span></div>
     </div>
 
+    <!-- Submit Form -->
     <div class="card">
       <h2 class="card-title">Highlight an Issue</h2>
       <p style="color:var(--text-muted);margin-bottom:20px;font-size:0.95rem">
@@ -41,16 +42,9 @@
       </p>
       <form id="issueForm">
         <div class="form-group">
-         <div class="form-group">
-  <label for="issueFacing">Issue Facing *</label>
-  <select id="issueFacing" name="issueFacing" required>
-    <option value="">-- Select Issue --</option>
-    <option value="System issue">1. System issue</option>
-    <option value="Network Issue">2. Network Issue</option>
-    <option value="Lifeline issue">3. Lifeline issue</option>
-    <option value="OS Issue">4. OS Issue</option>
-  </select>
-</div>
+          <label for="email">Email ID *</label>
+          <input type="email" id="email" name="email" placeholder="advisor@example.com" required autocomplete="email">
+        </div>
         <div class="form-group">
           <label for="tlName">TL Name *</label>
           <input type="text" id="tlName" name="tlName" placeholder="Team Lead name" required>
@@ -59,24 +53,35 @@
           <label for="chatLink">Chat Link <span class="optional">(optional)</span></label>
           <input type="url" id="chatLink" name="chatLink" placeholder="https://...">
         </div>
+        <div class="form-group">
+          <label for="issueFacing">Issue Facing *</label>
+          <select id="issueFacing" name="issueFacing" required>
+            <option value="">-- Select Issue --</option>
+            <option value="System issue">1. System issue</option>
+            <option value="Network Issue">2. Network Issue</option>
+            <option value="Lifeline issue">3. Lifeline issue</option>
+            <option value="OS Issue">4. OS Issue</option>
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary" id="submitBtn">
           Submit Issue
         </button>
       </form>
     </div>
 
+    <!-- Daily Stats + My Issues List -->
     <div class="card">
-      <h2 class="card-title">Your Daily Stats</h2>
+      <h2 class="card-title">Your Daily Activity</h2>
       <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem">
-        Enter the same Email ID used above to see how many entries you submitted today.
+        Enter your Email ID to see all issues you submitted today. Data stays throughout the day.
       </p>
       <div class="form-group" style="max-width:320px">
         <label for="statsEmail">Your Email ID</label>
         <input type="email" id="statsEmail" placeholder="advisor@example.com">
       </div>
-      <button class="btn btn-secondary" id="loadStatsBtn">Load My Stats</button>
+      <button class="btn btn-secondary" id="loadStatsBtn">Load My Data</button>
 
-      <div id="statsResult" style="margin-top:20px;display:none">
+      <div id="statsResult" style="margin-top:24px;display:none">
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value" id="statCount">0</div>
@@ -91,7 +96,13 @@
             <div class="stat-label">Fixed</div>
           </div>
         </div>
-        <p id="statsDate" style="font-size:0.85rem;color:var(--text-muted);text-align:center"></p>
+        <p id="statsDate" style="font-size:0.85rem;color:var(--text-muted);text-align:center;margin-bottom:20px"></p>
+
+        <!-- List of advisor's own issues -->
+        <h3 style="font-size:1.05rem;margin-bottom:12px;font-weight:600">Your Issues Today</h3>
+        <div id="myIssuesList" class="issue-list">
+          <!-- filled by JavaScript -->
+        </div>
       </div>
     </div>
   </div>
@@ -118,7 +129,7 @@
     updateWatch();
     setInterval(updateWatch, 1000);
 
-    // ===== Robot click speech =====
+    // ===== Robot =====
     const robot = document.getElementById('robot');
     const speech = document.getElementById('robotSpeech');
     let speechTimer = null;
@@ -126,21 +137,37 @@
     robot.addEventListener('click', () => {
       speech.classList.add('show');
       clearTimeout(speechTimer);
-      speechTimer = setTimeout(() => {
-        speech.classList.remove('show');
-      }, 4000);
+      speechTimer = setTimeout(() => speech.classList.remove('show'), 4000);
     });
 
-    // ===== Form logic =====
-    const form = document.getElementById('issueForm');
-    const submitBtn = document.getElementById('submitBtn');
+    // ===== Helpers =====
     const toast = document.getElementById('toast');
-
     function showToast(msg, type = 'success') {
       toast.textContent = msg;
       toast.className = 'toast show ' + type;
       setTimeout(() => toast.classList.remove('show'), 3200);
     }
+
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ===== Form Submit =====
+    const form = document.getElementById('issueForm');
+    const submitBtn = document.getElementById('submitBtn');
 
     const savedEmail = localStorage.getItem('v5_advisor_email');
     if (savedEmail) {
@@ -156,7 +183,8 @@
       const payload = {
         email: document.getElementById('email').value.trim(),
         tlName: document.getElementById('tlName').value.trim(),
-        chatLink: document.getElementById('chatLink').value.trim()
+        chatLink: document.getElementById('chatLink').value.trim(),
+        issueFacing: document.getElementById('issueFacing').value
       };
 
       try {
@@ -173,7 +201,7 @@
         form.reset();
         document.getElementById('email').value = payload.email;
         showToast('Issue highlighted successfully! Supervisor notified.');
-        loadStats();
+        loadMyData();   // refresh list immediately
       } catch (err) {
         showToast(err.message || 'Something went wrong', 'error');
       } finally {
@@ -182,30 +210,60 @@
       }
     });
 
-    async function loadStats() {
+    // ===== Load My Data (stats + list of issues) =====
+    async function loadMyData() {
       const email = document.getElementById('statsEmail').value.trim();
       if (!email) {
         showToast('Enter your email first', 'error');
         return;
       }
-      try {
-        const res = await fetch('/api/stats/advisor?email=' + encodeURIComponent(email));
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
 
-        document.getElementById('statCount').textContent = data.count;
-        document.getElementById('statOpen').textContent = data.open;
-        document.getElementById('statFixed').textContent = data.fixed;
-        document.getElementById('statsDate').textContent = 'For ' + data.date;
+      try {
+        // 1. Stats
+        const statsRes = await fetch('/api/stats/advisor?email=' + encodeURIComponent(email));
+        const stats = await statsRes.json();
+        if (!statsRes.ok) throw new Error(stats.error || 'Failed');
+
+        document.getElementById('statCount').textContent = stats.count;
+        document.getElementById('statOpen').textContent = stats.open;
+        document.getElementById('statFixed').textContent = stats.fixed;
+        document.getElementById('statsDate').textContent = 'For ' + stats.date;
         document.getElementById('statsResult').style.display = 'block';
         localStorage.setItem('v5_advisor_email', email);
+
+        // 2. List of my issues today
+        const issuesRes = await fetch('/api/issues?email=' + encodeURIComponent(email) + '&date=' + stats.date);
+        const issues = await issuesRes.json();
+
+        const list = document.getElementById('myIssuesList');
+        if (!issues.length) {
+          list.innerHTML = `<div class="empty-state" style="padding:24px"><div>No issues submitted today yet.</div></div>`;
+        } else {
+          list.innerHTML = issues.map(issue => `
+            <div class="issue-item ${issue.status}">
+              <div>
+                <div class="issue-meta">
+                  <div><strong>Issue:</strong> ${escapeHtml(issue.issueFacing || '—')}</div>
+                  <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
+                  ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank">Open</a></div>` : ''}
+                  <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
+                </div>
+                <div class="issue-time">Submitted: ${formatTime(issue.createdAt)}</div>
+              </div>
+            </div>
+          `).join('');
+        }
       } catch (err) {
-        showToast(err.message || 'Could not load stats', 'error');
+        showToast(err.message || 'Could not load data', 'error');
       }
     }
 
-    document.getElementById('loadStatsBtn').addEventListener('click', loadStats);
-    if (savedEmail) loadStats();
+    document.getElementById('loadStatsBtn').addEventListener('click', loadMyData);
+
+    // Auto load if email is already saved
+    if (savedEmail) {
+      loadMyData();
+    }
   </script>
 </body>
 </html>
