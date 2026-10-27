@@ -7,7 +7,7 @@ const querystring = require('querystring');
 const PORT = process.env.PORT || process.env.V5_PORT || 3100;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'issues.json');
-const PUBLIC_DIR = __dirname;   // ← fixed for your upload structure
+const PUBLIC_DIR = __dirname;
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -111,15 +111,17 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // POST /api/issues
   if (pathname === '/api/issues' && req.method === 'POST') {
     const body = await parseBody(req);
     const email = (body.email || '').trim();
     const tlName = (body.tlName || body.tl_name || '').trim();
     const chatLink = (body.chatLink || body.chat_link || '').trim();
+    const issueFacing = (body.issueFacing || body.issue_facing || '').trim();
 
-    if (!email || !tlName) {
+    if (!email || !tlName || !issueFacing) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Email ID and TL Name are required' }));
+      res.end(JSON.stringify({ error: 'Email ID, TL Name and Issue Facing are required' }));
       return;
     }
 
@@ -129,6 +131,7 @@ async function handleApi(req, res, pathname) {
       email,
       tlName,
       chatLink: chatLink || null,
+      issueFacing: issueFacing || null,
       status: 'open',
       createdAt: new Date().toISOString(),
       fixedAt: null
@@ -141,6 +144,7 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // GET /api/issues
   if (pathname === '/api/issues' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const { status, date, email } = parsed.query;
@@ -155,6 +159,7 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // PATCH /api/issues/:id
   if (pathname.startsWith('/api/issues/') && req.method === 'PATCH') {
     const id = pathname.split('/')[3];
     const issues = readIssues();
@@ -175,6 +180,7 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // GET /api/stats/advisor
   if (pathname === '/api/stats/advisor' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const email = (parsed.query.email || '').trim();
@@ -199,17 +205,19 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // GET /api/export
   if (pathname === '/api/export' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const date = parsed.query.date || getToday();
     let issues = readIssues().filter(i => i.createdAt.startsWith(date));
 
-    const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Status', 'Created At', 'Fixed At'];
+    const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Issue Facing', 'Status', 'Created At', 'Fixed At'];
     const rows = issues.map(i => [
       i.id,
       `"${(i.email || '').replace(/"/g, '""')}"`,
       `"${(i.tlName || '').replace(/"/g, '""')}"`,
       `"${(i.chatLink || '').replace(/"/g, '""')}"`,
+      `"${(i.issueFacing || '').replace(/"/g, '""')}"`,
       i.status,
       i.createdAt,
       i.fixedAt || ''
@@ -226,6 +234,7 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  // GET /api/stats/summary
   if (pathname === '/api/stats/summary' && req.method === 'GET') {
     const issues = readIssues();
     const today = getToday();
