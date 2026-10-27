@@ -4,16 +4,11 @@ const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
 
-// PORT: platforms like Render/Railway set process.env.PORT automatically
 const PORT = process.env.PORT || process.env.V5_PORT || 3100;
-
-// DATA_DIR: set this env var to a persistent disk path on Render/Railway
-// Example on Render: /opt/render/project/src/data  or  /var/data
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'issues.json');
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const PUBLIC_DIR = __dirname;   // ← fixed for your upload structure
 
-// Ensure data directory and file exist
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -21,7 +16,6 @@ if (!fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, '[]', 'utf8');
 }
 
-// Helper: read issues
 function readIssues() {
   try {
     const data = fs.readFileSync(DATA_FILE, 'utf8');
@@ -31,23 +25,19 @@ function readIssues() {
   }
 }
 
-// Helper: write issues
 function writeIssues(issues) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(issues, null, 2), 'utf8');
 }
 
-// Helper: generate ID
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
-// Helper: get today's date string YYYY-MM-DD
 function getToday() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
 }
 
-// Parse body
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -67,7 +57,6 @@ function parseBody(req) {
   });
 }
 
-// MIME types
 const mimeTypes = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -79,7 +68,6 @@ const mimeTypes = {
   '.svg': 'image/svg+xml'
 };
 
-// Serve static
 function serveStatic(req, res, pathname) {
   let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
   if (!filePath.startsWith(PUBLIC_DIR)) {
@@ -89,7 +77,6 @@ function serveStatic(req, res, pathname) {
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      // Fallback routes
       if (pathname === '/advisor' || pathname === '/supervisor') {
         const page = pathname.slice(1) + '.html';
         fs.readFile(path.join(PUBLIC_DIR, page), (err2, data2) => {
@@ -113,7 +100,6 @@ function serveStatic(req, res, pathname) {
   });
 }
 
-// API handlers
 async function handleApi(req, res, pathname) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
@@ -125,7 +111,6 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  // POST /api/issues - create
   if (pathname === '/api/issues' && req.method === 'POST') {
     const body = await parseBody(req);
     const email = (body.email || '').trim();
@@ -148,7 +133,7 @@ async function handleApi(req, res, pathname) {
       createdAt: new Date().toISOString(),
       fixedAt: null
     };
-    issues.unshift(newIssue); // newest first
+    issues.unshift(newIssue);
     writeIssues(issues);
 
     res.writeHead(201, { 'Content-Type': 'application/json' });
@@ -156,28 +141,20 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  // GET /api/issues - list all or filtered
   if (pathname === '/api/issues' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const { status, date, email } = parsed.query;
     let issues = readIssues();
 
-    if (status) {
-      issues = issues.filter(i => i.status === status);
-    }
-    if (date) {
-      issues = issues.filter(i => i.createdAt.startsWith(date));
-    }
-    if (email) {
-      issues = issues.filter(i => i.email.toLowerCase() === email.toLowerCase());
-    }
+    if (status) issues = issues.filter(i => i.status === status);
+    if (date) issues = issues.filter(i => i.createdAt.startsWith(date));
+    if (email) issues = issues.filter(i => i.email.toLowerCase() === email.toLowerCase());
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(issues));
     return;
   }
 
-  // PATCH /api/issues/:id - mark fixed
   if (pathname.startsWith('/api/issues/') && req.method === 'PATCH') {
     const id = pathname.split('/')[3];
     const issues = readIssues();
@@ -198,7 +175,6 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  // GET /api/stats/advisor?email=...
   if (pathname === '/api/stats/advisor' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const email = (parsed.query.email || '').trim();
@@ -223,13 +199,11 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  // GET /api/export?date=YYYY-MM-DD  -> CSV (Excel friendly)
   if (pathname === '/api/export' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const date = parsed.query.date || getToday();
     let issues = readIssues().filter(i => i.createdAt.startsWith(date));
 
-    // CSV header
     const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Status', 'Created At', 'Fixed At'];
     const rows = issues.map(i => [
       i.id,
@@ -248,11 +222,10 @@ async function handleApi(req, res, pathname) {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`
     });
-    res.end('\uFEFF' + csv); // BOM for Excel
+    res.end('\uFEFF' + csv);
     return;
   }
 
-  // GET /api/stats/summary - for supervisor notifications
   if (pathname === '/api/stats/summary' && req.method === 'GET') {
     const issues = readIssues();
     const today = getToday();
@@ -268,7 +241,6 @@ async function handleApi(req, res, pathname) {
   res.end(JSON.stringify({ error: 'Not found' }));
 }
 
-// Main server
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
@@ -284,13 +256,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Static + SPA-like routes
   serveStatic(req, res, pathname);
 });
 
 server.listen(PORT, () => {
   console.log(`V5 Issue Tracker by Shareque running at http://localhost:${PORT}`);
-  console.log(`Advisor page:  http://localhost:${PORT}/advisor`);
-  console.log(`Supervisor page: http://localhost:${PORT}/supervisor`);
-  console.log(`Data file: ${DATA_FILE}`);
+  console.log(`Advisor:  http://localhost:${PORT}/advisor`);
+  console.log(`Supervisor: http://localhost:${PORT}/supervisor`);
 });
