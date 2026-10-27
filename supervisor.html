@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supervisor | V5 Issue Tracker by Shareque</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">V5</div>
+      <div>
+        <div>V5 Issue Tracker</div>
+        <div style="font-size:0.7rem;opacity:0.85;font-weight:500">by Shareque</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="badge" id="openBadge">0 open</span>
+      <div class="nav-links">
+        <a href="/advisor">Advisor</a>
+        <a href="/supervisor">Supervisor</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="notification" id="notification">
+      <span class="notification-icon">🔔</span>
+      <span id="notifText">Loading notifications...</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalOpen">0</div>
+        <div class="stat-label">Total Open</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="openToday">0</div>
+        <div class="stat-label">Open Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalToday">0</div>
+        <div class="stat-label">Submitted Today</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Issues Dashboard</h2>
+
+      <div class="toolbar">
+        <select id="statusFilter">
+          <option value="">All Status</option>
+          <option value="open" selected>Open</option>
+          <option value="fixed">Fixed</option>
+        </select>
+        <input type="date" id="dateFilter">
+        <button class="btn btn-secondary btn-sm" id="refreshBtn">Refresh</button>
+        <button class="btn btn-primary btn-sm" id="exportBtn">Export Day to Excel (CSV)</button>
+      </div>
+
+      <div id="issueList" class="issue-list">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <div>Loading issues...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>V5 Issue Tracker</strong> by Shareque · Zomato-inspired design
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const toast = document.getElementById('toast');
+    let lastOpenCount = 0;
+    let pollTimer = null;
+
+    function showToast(msg, type = 'success') {
+      toast.textContent = msg;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3200);
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    async function loadSummary() {
+      try {
+        const res = await fetch('/api/stats/summary');
+        const data = await res.json();
+        document.getElementById('totalOpen').textContent = data.totalOpen;
+        document.getElementById('openToday').textContent = data.openToday;
+        document.getElementById('totalToday').textContent = data.totalToday;
+        document.getElementById('openBadge').textContent = data.totalOpen + ' open';
+
+        const notif = document.getElementById('notification');
+        const notifText = document.getElementById('notifText');
+        if (data.openToday > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.openToday} new issue(s) today still open. Please review & fix.`;
+        } else if (data.totalOpen > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.totalOpen} open issue(s) pending.`;
+        } else {
+          notif.classList.add('hidden');
+        }
+
+        // Simple notification: if open count increased
+        if (data.totalOpen > lastOpenCount && lastOpenCount > 0) {
+          showToast(`New issue received! Total open: ${data.totalOpen}`);
+        }
+        lastOpenCount = data.totalOpen;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadIssues() {
+      const status = document.getElementById('statusFilter').value;
+      const date = document.getElementById('dateFilter').value;
+      let url = '/api/issues?';
+      if (status) url += 'status=' + encodeURIComponent(status) + '&';
+      if (date) url += 'date=' + encodeURIComponent(date) + '&';
+
+      try {
+        const res = await fetch(url);
+        const issues = await res.json();
+        const list = document.getElementById('issueList');
+
+        if (!issues.length) {
+          list.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">✅</div>
+              <div>No issues found for the selected filters.</div>
+            </div>`;
+          return;
+        }
+
+        list.innerHTML = issues.map(issue => `
+          <div class="issue-item ${issue.status}" data-id="${issue.id}">
+            <div>
+              <div class="issue-meta">
+                <div><strong>Email:</strong> ${escapeHtml(issue.email)}</div>
+                <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
+                ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank" rel="noopener">Open link</a></div>` : ''}
+                <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
+              </div>
+              <div class="issue-time">
+                Created: ${formatTime(issue.createdAt)}
+                ${issue.fixedAt ? ' · Fixed: ' + formatTime(issue.fixedAt) : ''}
+              </div>
+            </div>
+            <div>
+              ${issue.status === 'open' ? `
+                <button class="btn btn-success btn-sm" onclick="markFixed('${issue.id}')">
+                  Mark Fixed
+                </button>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        document.getElementById('issueList').innerHTML = `
+          <div class="empty-state"><div class="icon">⚠️</div><div>Failed to load issues</div></div>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function markFixed(id) {
+      try {
+        const res = await fetch('/api/issues/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'fixed' })
+        });
+        if (!res.ok) throw new Error('Failed');
+        showToast('Issue marked as fixed');
+        loadIssues();
+        loadSummary();
+      } catch (e) {
+        showToast('Could not update issue', 'error');
+      }
+    }
+
+    // Make global for onclick
+    window.markFixed = markFixed;
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadIssues();
+      loadSummary();
+      showToast('Refreshed');
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', loadIssues);
+    document.getElementById('dateFilter').addEventListener('change', loadIssues);
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const date = document.getElementById('dateFilter').value || new Date().toISOString().slice(0, 10);
+      window.location.href = '/api/export?date=' + encodeURIComponent(date);
+    });
+
+    // Initial load
+    // Set date filter default empty (all) but export uses today
+    loadSummary();
+    loadIssues();
+
+    // Poll every 15s for new issues / notification
+    pollTimer = setInterval(() => {
+      loadSummary();
+      // only refresh list if looking at open
+      if (document.getElementById('statusFilter').value === 'open' || !document.getElementById('statusFilter').value) {
+        loadIssues();
+      }
+    }, 15000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V5 Issue Tracker by Shareque</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .hero {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 36px;
+    }
+    .role-cards {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .role-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 28px;
+      width: 260px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .role-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+    }
+    .role-card .icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+    }
+    .role-card h2 {
+      font-size: 1.3rem;
+      margin-bottom: 8px;
+      color: var(--zomato-red);
+    }
+    .role-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">V5</div>
+      <div>
+        <div>V5 Issue Tracker</div>
+        <div style="font-size:0.7rem;opacity:0.85;font-weight:500">by Shareque</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="hero">
+      <h1>V5 Issue Tracker</h1>
+      <p>by Shareque · Highlight issues. Get them fixed. Fast.</p>
+      <div class="role-cards">
+        <a href="/advisor" class="role-card">
+          <div class="icon">👤</div>
+          <h2>Advisor</h2>
+          <p>Submit issues with email, TL name & optional chat link. Track your daily count.</p>
+        </a>
+        <a href="/supervisor" class="role-card">
+          <div class="icon">🛡️</div>
+          <h2>Supervisor</h2>
+          <p>See live issues, notifications, mark fixed & export day-wise data to Excel.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>V5 Issue Tracker</strong> by Shareque · Zomato-inspired design
+  </div>
+</body>
+</html>

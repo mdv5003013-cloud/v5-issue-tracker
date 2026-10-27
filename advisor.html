@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advisor | V5 Issue Tracker by Shareque</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">V5</div>
+      <div>
+        <div>V5 Issue Tracker</div>
+        <div style="font-size:0.7rem;opacity:0.85;font-weight:500">by Shareque</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="/advisor">Advisor</a>
+      <a href="/supervisor">Supervisor</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2 class="card-title">Highlight an Issue</h2>
+      <p style="color:var(--text-muted);margin-bottom:20px;font-size:0.95rem">
+        Submit issue details. Supervisor will be notified instantly.
+      </p>
+      <form id="issueForm">
+        <div class="form-group">
+          <label for="email">Email ID *</label>
+          <input type="email" id="email" name="email" placeholder="advisor@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="tlName">TL Name *</label>
+          <input type="text" id="tlName" name="tlName" placeholder="Team Lead name" required>
+        </div>
+        <div class="form-group">
+          <label for="chatLink">Chat Link <span class="optional">(optional)</span></label>
+          <input type="url" id="chatLink" name="chatLink" placeholder="https://...">
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          Submit Issue
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Your Daily Stats</h2>
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem">
+        Enter the same Email ID used above to see how many entries you submitted today.
+      </p>
+      <div class="form-group" style="max-width:320px">
+        <label for="statsEmail">Your Email ID</label>
+        <input type="email" id="statsEmail" placeholder="advisor@example.com">
+      </div>
+      <button class="btn btn-secondary" id="loadStatsBtn">Load My Stats</button>
+
+      <div id="statsResult" style="margin-top:20px;display:none">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="statCount">0</div>
+            <div class="stat-label">Entries Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statOpen">0</div>
+            <div class="stat-label">Still Open</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statFixed">0</div>
+            <div class="stat-label">Fixed</div>
+          </div>
+        </div>
+        <p id="statsDate" style="font-size:0.85rem;color:var(--text-muted);text-align:center"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>V5 Issue Tracker</strong> by Shareque · Zomato-inspired design
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const form = document.getElementById('issueForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const toast = document.getElementById('toast');
+
+    function showToast(msg, type = 'success') {
+      toast.textContent = msg;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3200);
+    }
+
+    // Remember last email
+    const savedEmail = localStorage.getItem('v5_advisor_email');
+    if (savedEmail) {
+      document.getElementById('email').value = savedEmail;
+      document.getElementById('statsEmail').value = savedEmail;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      const payload = {
+        email: document.getElementById('email').value.trim(),
+        tlName: document.getElementById('tlName').value.trim(),
+        chatLink: document.getElementById('chatLink').value.trim()
+      };
+
+      try {
+        const res = await fetch('/api/issues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+
+        localStorage.setItem('v5_advisor_email', payload.email);
+        document.getElementById('statsEmail').value = payload.email;
+        form.reset();
+        document.getElementById('email').value = payload.email;
+        showToast('Issue highlighted successfully! Supervisor notified.');
+        // auto refresh stats
+        loadStats();
+      } catch (err) {
+        showToast(err.message || 'Something went wrong', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Issue';
+      }
+    });
+
+    async function loadStats() {
+      const email = document.getElementById('statsEmail').value.trim();
+      if (!email) {
+        showToast('Enter your email first', 'error');
+        return;
+      }
+      try {
+        const res = await fetch('/api/stats/advisor?email=' + encodeURIComponent(email));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+
+        document.getElementById('statCount').textContent = data.count;
+        document.getElementById('statOpen').textContent = data.open;
+        document.getElementById('statFixed').textContent = data.fixed;
+        document.getElementById('statsDate').textContent = 'For ' + data.date;
+        document.getElementById('statsResult').style.display = 'block';
+        localStorage.setItem('v5_advisor_email', email);
+      } catch (err) {
+        showToast(err.message || 'Could not load stats', 'error');
+      }
+    }
+
+    document.getElementById('loadStatsBtn').addEventListener('click', loadStats);
+
+    // Auto load if email present
+    if (savedEmail) loadStats();
+  </script>
+</body>
+</html>
