@@ -358,30 +358,38 @@ body {
 }
 .footer strong { color: var(--primary); }
 
-/* ===== NEW: Floating Robot ===== */
+/* ===== Improved 3D Android-style Robot ===== */
 .floating-robot {
   position: fixed;
   bottom: 30px;
   left: 30px;
-  font-size: 2.8rem;
+  font-size: 3.4rem;
   cursor: pointer;
   z-index: 999;
   transition: transform 0.3s ease;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
-  animation: roam 18s ease-in-out infinite;
+  filter: 
+    drop-shadow(0 10px 15px rgba(0,0,0,0.28))
+    drop-shadow(0 4px 6px rgba(196, 30, 58, 0.25));
+  animation: roam 38s ease-in-out infinite;
+  transform-style: preserve-3d;
+  text-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
 .floating-robot:hover {
-  transform: scale(1.15);
+  transform: scale(1.18) rotateY(12deg);
+  filter: 
+    drop-shadow(0 14px 20px rgba(0,0,0,0.32))
+    drop-shadow(0 6px 10px rgba(196, 30, 58, 0.35));
 }
 
 @keyframes roam {
-  0%   { transform: translate(0, 0); }
-  20%  { transform: translate(calc(100vw - 120px), 20px); }
-  40%  { transform: translate(calc(100vw - 150px), calc(100vh - 180px)); }
-  60%  { transform: translate(40px, calc(100vh - 200px)); }
-  80%  { transform: translate(calc(50vw - 40px), 40px); }
-  100% { transform: translate(0, 0); }
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  15%  { transform: translate(calc(100vw - 140px), 30px) rotate(5deg); }
+  30%  { transform: translate(calc(100vw - 160px), calc(50vh - 40px)) rotate(-4deg); }
+  50%  { transform: translate(calc(100vw - 150px), calc(100vh - 190px)) rotate(6deg); }
+  70%  { transform: translate(50px, calc(100vh - 210px)) rotate(-5deg); }
+  85%  { transform: translate(calc(40vw), 50px) rotate(3deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
 }
 
 /* Speech bubble */
