@@ -41,9 +41,16 @@
       </p>
       <form id="issueForm">
         <div class="form-group">
-          <label for="email">Email ID *</label>
-          <input type="email" id="email" name="email" placeholder="advisor@example.com" required autocomplete="email">
-        </div>
+         <div class="form-group">
+  <label for="issueFacing">Issue Facing *</label>
+  <select id="issueFacing" name="issueFacing" required>
+    <option value="">-- Select Issue --</option>
+    <option value="System issue">1. System issue</option>
+    <option value="Network Issue">2. Network Issue</option>
+    <option value="Lifeline issue">3. Lifeline issue</option>
+    <option value="OS Issue">4. OS Issue</option>
+  </select>
+</div>
         <div class="form-group">
           <label for="tlName">TL Name *</label>
           <input type="text" id="tlName" name="tlName" placeholder="Team Lead name" required>
