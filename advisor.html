@@ -1,457 +1,204 @@
-/* V5 Issue Tracker by Shareque - Cherry Red + Circuit Theme */
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;500;600;700;800&display=swap');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advisor | V5 Issue Tracker by Shareque</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">V5</div>
+      <div>
+        <div>V5 Issue Tracker</div>
+        <div style="font-size:0.7rem;opacity:0.85;font-weight:500">by Shareque</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="/advisor">Advisor</a>
+    </div>
+  </header>
 
-:root {
-  --primary: #C41E3A;          /* Cherry Red */
-  --primary-dark: #9B1B30;
-  --primary-light: #FFF0F3;
-  --bg: #F8F5F6;
-  --card: #FFFFFF;
-  --text: #1C1917;
-  --text-muted: #78716C;
-  --border: #E7E5E4;
-  --success: #16A34A;
-  --success-bg: #F0FDF4;
-  --shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
-  --radius: 16px;
-  --font: 'Roboto Slab', Georgia, serif;
-}
+  <!-- Live Digital Watch -->
+  <div class="live-watch" id="liveWatch">
+    <div id="watchTime">--:--:--</div>
+    <div class="date" id="watchDate">-- --- ----</div>
+  </div>
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+  <div class="container">
+    <div class="mini-illustration">
+      <div class="mini-item">🛵<span>Delivery</span></div>
+      <div class="mini-item">🍔<span>Food</span></div>
+      <div class="mini-item">🎧<span>Agent</span></div>
+      <div class="mini-item">💻<span>Tech</span></div>
+    </div>
 
-body {
-  font-family: var(--font);
-  background-color: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  line-height: 1.6;
-  /* Circuit / wire background */
-  background-image: 
-    linear-gradient(rgba(196, 30, 58, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(196, 30, 58, 0.03) 1px, transparent 1px),
-    radial-gradient(circle at 20% 30%, rgba(196, 30, 58, 0.04) 0%, transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(196, 30, 58, 0.03) 0%, transparent 35%);
-  background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%;
-}
+    <div class="card">
+      <h2 class="card-title">Highlight an Issue</h2>
+      <p style="color:var(--text-muted);margin-bottom:20px;font-size:0.95rem">
+        Submit issue details. Supervisor will be notified instantly.
+      </p>
+      <form id="issueForm">
+        <div class="form-group">
+          <label for="email">Email ID *</label>
+          <input type="email" id="email" name="email" placeholder="advisor@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="tlName">TL Name *</label>
+          <input type="text" id="tlName" name="tlName" placeholder="Team Lead name" required>
+        </div>
+        <div class="form-group">
+          <label for="chatLink">Chat Link <span class="optional">(optional)</span></label>
+          <input type="url" id="chatLink" name="chatLink" placeholder="https://...">
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          Submit Issue
+        </button>
+      </form>
+    </div>
 
-/* Header */
-.header {
-  background: linear-gradient(135deg, #C41E3A 0%, #9B1B30 100%);
-  color: white;
-  padding: 14px 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 3px 18px rgba(196, 30, 58, 0.3);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
+    <div class="card">
+      <h2 class="card-title">Your Daily Stats</h2>
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem">
+        Enter the same Email ID used above to see how many entries you submitted today.
+      </p>
+      <div class="form-group" style="max-width:320px">
+        <label for="statsEmail">Your Email ID</label>
+        <input type="email" id="statsEmail" placeholder="advisor@example.com">
+      </div>
+      <button class="btn btn-secondary" id="loadStatsBtn">Load My Stats</button>
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 700;
-  font-size: 1.3rem;
-}
+      <div id="statsResult" style="margin-top:20px;display:none">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="statCount">0</div>
+            <div class="stat-label">Entries Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statOpen">0</div>
+            <div class="stat-label">Still Open</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statFixed">0</div>
+            <div class="stat-label">Fixed</div>
+          </div>
+        </div>
+        <p id="statsDate" style="font-size:0.85rem;color:var(--text-muted);text-align:center"></p>
+      </div>
+    </div>
+  </div>
 
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: white;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: var(--primary);
-  font-weight: 800;
-}
+  <div class="footer">
+    <strong>V5 Issue Tracker</strong> by Shareque
+  </div>
 
-.badge {
-  background: rgba(255,255,255,0.22);
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
+  <!-- Floating Robot -->
+  <div class="floating-robot" id="robot" title="Click me!">🤖</div>
+  <div class="robot-speech" id="robotSpeech">Hi I am from WFM team How can I help you</div>
 
-.nav-links a {
-  color: white;
-  text-decoration: none;
-  margin-left: 18px;
-  font-weight: 500;
-  font-size: 0.95rem;
-  opacity: 0.93;
-}
+  <div class="toast" id="toast"></div>
 
-/* Container */
-.container {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 28px 18px;
-  position: relative;
-}
+  <script>
+    // ===== Live Watch =====
+    function updateWatch() {
+      const now = new Date();
+      const time = now.toLocaleTimeString('en-IN', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const date = now.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+      document.getElementById('watchTime').textContent = time;
+      document.getElementById('watchDate').textContent = date;
+    }
+    updateWatch();
+    setInterval(updateWatch, 1000);
 
-/* Mini illustrations */
-.mini-illustration {
-  display: flex;
-  justify-content: center;
-  gap: 28px;
-  margin: 16px 0 20px;
-  flex-wrap: wrap;
-}
+    // ===== Robot click speech =====
+    const robot = document.getElementById('robot');
+    const speech = document.getElementById('robotSpeech');
+    let speechTimer = null;
 
-.mini-item {
-  text-align: center;
-  font-size: 2.1rem;
-  opacity: 0.9;
-  transition: transform 0.25s ease;
-}
+    robot.addEventListener('click', () => {
+      speech.classList.add('show');
+      clearTimeout(speechTimer);
+      speechTimer = setTimeout(() => {
+        speech.classList.remove('show');
+      }, 4000);
+    });
 
-.mini-item:hover { transform: scale(1.12); }
+    // ===== Form logic =====
+    const form = document.getElementById('issueForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const toast = document.getElementById('toast');
 
-.mini-item span {
-  display: block;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-top: 4px;
-  font-weight: 500;
-}
+    function showToast(msg, type = 'success') {
+      toast.textContent = msg;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3200);
+    }
 
-/* Cards */
-.card {
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 28px;
-  margin-bottom: 22px;
-  border: 1px solid var(--border);
-  position: relative;
-  z-index: 2;
-}
+    const savedEmail = localStorage.getItem('v5_advisor_email');
+    if (savedEmail) {
+      document.getElementById('email').value = savedEmail;
+      document.getElementById('statsEmail').value = savedEmail;
+    }
 
-.card-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 10px;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
 
-.card-title::before {
-  content: '';
-  width: 4px;
-  height: 22px;
-  background: var(--primary);
-  border-radius: 2px;
-}
+      const payload = {
+        email: document.getElementById('email').value.trim(),
+        tlName: document.getElementById('tlName').value.trim(),
+        chatLink: document.getElementById('chatLink').value.trim()
+      };
 
-/* Form */
-.form-group { margin-bottom: 18px; }
+      try {
+        const res = await fetch('/api/issues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
 
-.form-group label {
-  display: block;
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 6px;
-}
+        localStorage.setItem('v5_advisor_email', payload.email);
+        document.getElementById('statsEmail').value = payload.email;
+        form.reset();
+        document.getElementById('email').value = payload.email;
+        showToast('Issue highlighted successfully! Supervisor notified.');
+        loadStats();
+      } catch (err) {
+        showToast(err.message || 'Something went wrong', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Issue';
+      }
+    });
 
-.form-group label .optional {
-  font-weight: 400;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
+    async function loadStats() {
+      const email = document.getElementById('statsEmail').value.trim();
+      if (!email) {
+        showToast('Enter your email first', 'error');
+        return;
+      }
+      try {
+        const res = await fetch('/api/stats/advisor?email=' + encodeURIComponent(email));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
 
-.form-group input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: 11px;
-  font-size: 0.95rem;
-  font-family: inherit;
-  background: #FAFAF9;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
+        document.getElementById('statCount').textContent = data.count;
+        document.getElementById('statOpen').textContent = data.open;
+        document.getElementById('statFixed').textContent = data.fixed;
+        document.getElementById('statsDate').textContent = 'For ' + data.date;
+        document.getElementById('statsResult').style.display = 'block';
+        localStorage.setItem('v5_advisor_email', email);
+      } catch (err) {
+        showToast(err.message || 'Could not load stats', 'error');
+      }
+    }
 
-.form-group input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(196, 30, 58, 0.12);
-  background: white;
-}
-
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 22px;
-  border: none;
-  border-radius: 11px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  box-shadow: 0 4px 14px rgba(196, 30, 58, 0.35);
-}
-
-.btn-primary:hover { background: var(--primary-dark); }
-
-.btn-secondary {
-  background: white;
-  color: var(--primary);
-  border: 1.5px solid var(--primary);
-}
-
-.btn-secondary:hover { background: var(--primary-light); }
-
-.btn-success { background: var(--success); color: white; }
-.btn-sm { padding: 8px 14px; font-size: 0.85rem; }
-
-/* Stats */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
-  margin-bottom: 22px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: var(--radius);
-  padding: 20px 14px;
-  text-align: center;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--primary);
-}
-
-.stat-value {
-  font-size: 1.85rem;
-  font-weight: 800;
-  color: var(--primary);
-  line-height: 1.1;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-top: 5px;
-  font-weight: 500;
-}
-
-/* Issue list styles (kept for supervisor) */
-.issue-list { display: flex; flex-direction: column; gap: 12px; }
-.issue-item {
-  background: white;
-  border-radius: 13px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: start;
-}
-.issue-item.open { border-left: 4px solid var(--primary); }
-.issue-item.fixed { border-left: 4px solid var(--success); opacity: 0.88; }
-.issue-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.9rem; }
-.issue-meta strong { color: var(--text-muted); font-weight: 500; margin-right: 3px; }
-.issue-meta a { color: var(--primary); text-decoration: none; font-weight: 500; }
-.status-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.status-open { background: #FFE5E7; color: var(--primary); }
-.status-fixed { background: var(--success-bg); color: #15803D; }
-.issue-time { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; }
-
-/* Notification */
-.notification {
-  background: linear-gradient(90deg, #FFF7ED, #FFEDD5);
-  border: 1px solid #FDBA74;
-  border-radius: 13px;
-  padding: 14px 18px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 500;
-}
-.notification.hidden { display: none; }
-
-/* Toast */
-.toast {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  background: #1C1917;
-  color: white;
-  padding: 14px 22px;
-  border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.25);
-  font-weight: 500;
-  z-index: 1000;
-  transform: translateY(120px);
-  opacity: 0;
-  transition: all 0.3s ease;
-}
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.success { background: var(--success); }
-.toast.error { background: var(--primary); }
-
-/* Toolbar */
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 18px;
-}
-.toolbar input[type="date"],
-.toolbar select {
-  padding: 10px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  font-family: inherit;
-  font-size: 0.9rem;
-  background: white;
-}
-
-/* Empty state */
-.empty-state {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--text-muted);
-}
-.empty-state .icon { font-size: 2.8rem; margin-bottom: 10px; opacity: 0.5; }
-
-/* Footer */
-.footer {
-  text-align: center;
-  padding: 26px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-.footer strong { color: var(--primary); }
-
-/* ===== NEW: Floating Robot ===== */
-.floating-robot {
-  position: fixed;
-  bottom: 30px;
-  left: 30px;
-  font-size: 2.8rem;
-  cursor: pointer;
-  z-index: 999;
-  transition: transform 0.3s ease;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
-  animation: roam 18s ease-in-out infinite;
-}
-
-.floating-robot:hover {
-  transform: scale(1.15);
-}
-
-@keyframes roam {
-  0%   { transform: translate(0, 0); }
-  20%  { transform: translate(calc(100vw - 120px), 20px); }
-  40%  { transform: translate(calc(100vw - 150px), calc(100vh - 180px)); }
-  60%  { transform: translate(40px, calc(100vh - 200px)); }
-  80%  { transform: translate(calc(50vw - 40px), 40px); }
-  100% { transform: translate(0, 0); }
-}
-
-/* Speech bubble */
-.robot-speech {
-  position: fixed;
-  bottom: 100px;
-  left: 30px;
-  background: white;
-  color: #1C1917;
-  padding: 12px 16px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  font-size: 0.9rem;
-  font-weight: 500;
-  max-width: 240px;
-  z-index: 1000;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.3s ease;
-  pointer-events: none;
-  border: 2px solid var(--primary);
-}
-
-.robot-speech.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.robot-speech::after {
-  content: '';
-  position: absolute;
-  bottom: -10px;
-  left: 24px;
-  border-width: 10px 8px 0 8px;
-  border-style: solid;
-  border-color: white transparent transparent transparent;
-}
-
-/* ===== NEW: Digital Watch ===== */
-.live-watch {
-  position: fixed;
-  top: 80px;
-  right: 24px;
-  background: linear-gradient(145deg, #1C1917, #292524);
-  color: #F5F5F4;
-  padding: 10px 16px;
-  border-radius: 12px;
-  font-family: 'Roboto Slab', monospace;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 1px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-  z-index: 90;
-  border: 1px solid #44403C;
-  min-width: 110px;
-  text-align: center;
-}
-
-.live-watch .date {
-  font-size: 0.7rem;
-  opacity: 0.7;
-  margin-top: 2px;
-  font-weight: 400;
-}
-
-/* Responsive */
-@media (max-width: 600px) {
-  .header { flex-direction: column; gap: 10px; text-align: center; }
-  .issue-item { grid-template-columns: 1fr; }
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .live-watch { top: 110px; right: 12px; font-size: 0.95rem; }
-  .floating-robot { font-size: 2.3rem; }
-}
+    document.getElementById('loadStatsBtn').addEventListener('click', loadStats);
+    if (savedEmail) loadStats();
+  </script>
+</body>
+</html>
