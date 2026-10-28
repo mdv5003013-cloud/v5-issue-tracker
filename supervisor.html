@@ -1,106 +1,268 @@
-// V5 Issue Tracker - server with permanent storage
-// Run: npm install express  &&  node server.js
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supervisor | V5 Issue Tracker by Shareque</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">V5</div>
+      <div>
+        <div>V5 Issue Tracker</div>
+        <div style="font-size:0.7rem;opacity:0.85;font-weight:500">by Shareque</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="badge" id="openBadge">0 open</span>
+      <div class="nav-links">
+        <a href="/supervisor">Supervisor</a>
+      </div>
+    </div>
+  </header>
 
-const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+  <div class="container">
+    <div class="mini-illustration">
+      <div class="mini-item">🛵<span>Delivery</span></div>
+      <div class="mini-item">🍔<span>Food</span></div>
+      <div class="mini-item">🎧<span>Agent</span></div>
+      <div class="mini-item">💻<span>Tech</span></div>
+    </div>
 
-// ---- Persistent storage (JSON file on disk) ----
-// On a host like Render/Railway/Heroku, point DATA_DIR at a persistent disk/volume.
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'issues.json');
-fs.mkdirSync(DATA_DIR, { recursive: true });
+    <div class="notification" id="notification">
+      <span class="notification-icon">🔔</span>
+      <span id="notifText">Loading notifications...</span>
+    </div>
 
-let issues = [];
-try {
-  issues = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-} catch (e) {
-  issues = []; // first run
-}
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalOpen">0</div>
+        <div class="stat-label">Total Open</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="openToday">0</div>
+        <div class="stat-label">Open Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalToday">0</div>
+        <div class="stat-label">Submitted Today</div>
+      </div>
+    </div>
 
-function save() {
-  // write to a temp file first, then rename, so a crash never corrupts data
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(issues, null, 2));
-  fs.renameSync(tmp, DB_FILE);
-}
+    <div class="card">
+      <h2 class="card-title">Issues Dashboard</h2>
 
-const dayKey = (iso) =>
-  new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+      <div class="toolbar">
+        <select id="statusFilter">
+          <option value="">All Status</option>
+          <option value="open" selected>Open</option>
+          <option value="fixed">Fixed</option>
+        </select>
+        <input type="date" id="dateFilter">
+        <button class="btn btn-secondary btn-sm" id="refreshBtn">Refresh</button>
+        <button class="btn btn-primary btn-sm" id="exportBtn">Export Day to Excel (CSV)</button>
+      </div>
 
-// ---- API ----
-// Advisor submits an issue
-app.post('/api/issues', (req, res) => {
-  const { email, tlName, chatLink, issueFacing } = req.body || {};
-  if (!email || !tlName) return res.status(400).json({ error: 'email and tlName required' });
-  const issue = {
-    id: crypto.randomUUID(),
-    email: String(email).trim(),
-    tlName: String(tlName).trim(),
-    chatLink: String(chatLink || '').trim(),
-    issueFacing: String(issueFacing || '').trim(),
-    status: 'open',
-    createdAt: new Date().toISOString(),
-    fixedAt: null,
-  };
-  issues.push(issue);
-  save();
-  res.status(201).json(issue);
-});
+      <div id="issueList" class="issue-list">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <div>Loading issues...</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// List issues (filters: status, date)
-app.get('/api/issues', (req, res) => {
-  const { status, date } = req.query;
-  let list = issues;
-  if (status) list = list.filter((i) => i.status === status);
-  if (date) list = list.filter((i) => dayKey(i.createdAt) === date);
-  res.json([...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-});
+  <div class="footer">
+    <strong>V5 Issue Tracker</strong> by Shareque
+  </div>
 
-// Supervisor marks fixed
-app.patch('/api/issues/:id', (req, res) => {
-  const issue = issues.find((i) => i.id === req.params.id);
-  if (!issue) return res.status(404).json({ error: 'not found' });
-  if (req.body.status === 'fixed') {
-    issue.status = 'fixed';
-    issue.fixedAt = new Date().toISOString();
-  } else if (req.body.status === 'open') {
-    issue.status = 'open';
-    issue.fixedAt = null;
-  }
-  save();
-  res.json(issue);
-});
+  <div class="toast" id="toast"></div>
 
-// Dashboard numbers
-app.get('/api/stats/summary', (req, res) => {
-  const today = dayKey(new Date().toISOString());
-  const todays = issues.filter((i) => dayKey(i.createdAt) === today);
-  res.json({
-    totalOpen: issues.filter((i) => i.status === 'open').length,
-    openToday: todays.filter((i) => i.status === 'open').length,
-    totalToday: todays.length,
-  });
-});
+  <script>
+    const toast = document.getElementById('toast');
+    let lastOpenCount = 0;
+    let pollTimer = null;
 
-// CSV export (opens in Excel)
-app.get('/api/export', (req, res) => {
-  const date = req.query.date;
-  const list = date ? issues.filter((i) => dayKey(i.createdAt) === date) : issues;
-  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = [['Email', 'TL Name', 'Chat Link', 'Issue', 'Status', 'Created', 'Fixed']]
-    .concat(list.map((i) => [i.email, i.tlName, i.chatLink, i.issueFacing, i.status, i.createdAt, i.fixedAt || '']));
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="v5-issues-${date || 'all'}.csv"`);
-  res.send('\uFEFF' + rows.map((r) => r.map(q).join(',')).join('\n'));
-});
+    function showToast(msg, type = 'success') {
+      toast.textContent = msg;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3200);
+    }
 
-// Pages
-app.get('/supervisor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'supervisor.html')));
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Running on port ' + PORT));
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadSummary() {
+      try {
+        const res = await fetch('/api/stats/summary');
+        const data = await res.json();
+        document.getElementById('totalOpen').textContent = data.totalOpen;
+        document.getElementById('openToday').textContent = data.openToday;
+        document.getElementById('totalToday').textContent = data.totalToday;
+        document.getElementById('openBadge').textContent = data.totalOpen + ' open';
+
+        const notif = document.getElementById('notification');
+        const notifText = document.getElementById('notifText');
+        if (data.openToday > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.openToday} new issue(s) today still open. Please review & fix.`;
+        } else if (data.totalOpen > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.totalOpen} open issue(s) pending.`;
+        } else {
+          notif.classList.add('hidden');
+        }
+
+        // Louder notification when new issue arrives
+        if (data.totalOpen > lastOpenCount && lastOpenCount > 0) {
+          showToast(`New issue received! Total open: ${data.totalOpen}`);
+          
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.9, ctx.currentTime);
+            
+            oscillator.start();
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+            oscillator.stop(ctx.currentTime + 0.8);
+            
+            setTimeout(() => {
+              const osc2 = ctx.createOscillator();
+              const gain2 = ctx.createGain();
+              osc2.connect(gain2);
+              gain2.connect(ctx.destination);
+              osc2.type = 'square';
+              osc2.frequency.setValueAtTime(1100, ctx.currentTime);
+              gain2.gain.setValueAtTime(0.9, ctx.currentTime);
+              osc2.start();
+              gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+              osc2.stop(ctx.currentTime + 0.6);
+            }, 300);
+          } catch (e) {
+            console.log('Sound not supported');
+          }
+        }
+        lastOpenCount = data.totalOpen;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadIssues() {
+      const status = document.getElementById('statusFilter').value;
+      const date = document.getElementById('dateFilter').value;
+      let url = '/api/issues?';
+      if (status) url += 'status=' + encodeURIComponent(status) + '&';
+      if (date) url += 'date=' + encodeURIComponent(date) + '&';
+
+      try {
+        const res = await fetch(url);
+        const issues = await res.json();
+        const list = document.getElementById('issueList');
+
+        if (!issues.length) {
+          list.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">✅</div>
+              <div>No issues found for the selected filters.</div>
+            </div>`;
+          return;
+        }
+
+        list.innerHTML = issues.map(issue => `
+          <div class="issue-item ${issue.status}" data-id="${issue.id}">
+            <div>
+              <div class="issue-meta">
+                <div><strong>Email:</strong> ${escapeHtml(issue.email)}</div>
+                <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
+                <div><strong>Issue:</strong> ${escapeHtml(issue.issueFacing || '—')}</div>
+                ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank" rel="noopener">Open link</a></div>` : ''}
+                <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
+              </div>
+              <div class="issue-time">
+                Created: ${formatTime(issue.createdAt)}
+                ${issue.fixedAt ? ' · Fixed: ' + formatTime(issue.fixedAt) : ''}
+              </div>
+            </div>
+            <div>
+              ${issue.status === 'open' ? `
+                <button class="btn btn-success btn-sm" onclick="markFixed('${issue.id}')">
+                  Mark Fixed
+                </button>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        document.getElementById('issueList').innerHTML = `
+          <div class="empty-state"><div class="icon">⚠️</div><div>Failed to load issues</div></div>`;
+      }
+    }
+
+    async function markFixed(id) {
+      try {
+        const res = await fetch('/api/issues/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'fixed' })
+        });
+        if (!res.ok) throw new Error('Failed');
+        showToast('Issue marked as fixed');
+        loadIssues();
+        loadSummary();
+      } catch (e) {
+        showToast('Could not update issue', 'error');
+      }
+    }
+
+    window.markFixed = markFixed;
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadIssues();
+      loadSummary();
+      showToast('Refreshed');
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', loadIssues);
+    document.getElementById('dateFilter').addEventListener('change', loadIssues);
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const date = document.getElementById('dateFilter').value || new Date().toISOString().slice(0, 10);
+      window.location.href = '/api/export?date=' + encodeURIComponent(date);
+    });
+
+    loadSummary();
+    loadIssues();
+
+    pollTimer = setInterval(() => {
+      loadSummary();
+      if (document.getElementById('statusFilter').value === 'open' || !document.getElementById('statusFilter').value) {
+        loadIssues();
+      }
+    }, 15000);
+  </script>
+</body>
+</html>
