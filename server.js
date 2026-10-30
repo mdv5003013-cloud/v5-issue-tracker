@@ -3,16 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 
 const PORT = process.env.PORT || 3100;
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const PUBLIC_DIR = __dirname;
 
-let db = null;
 let issuesCollection = null;
 
-// Connect to MongoDB
 async function connectDB() {
   if (!MONGODB_URI) {
     console.error('MONGODB_URI is not set!');
@@ -21,7 +19,7 @@ async function connectDB() {
   try {
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    db = client.db('v5tracker');
+    const db = client.db('v5tracker');
     issuesCollection = db.collection('issues');
     console.log('Connected to MongoDB successfully');
   } catch (err) {
@@ -137,6 +135,8 @@ async function handleApi(req, res, pathname) {
       chatLink: chatLink || null,
       issueFacing: issueFacing || null,
       status: 'open',
+      pickedBy: null,
+      pickedAt: null,
       createdAt: new Date().toISOString(),
       fixedAt: null
     };
@@ -165,32 +165,54 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  // PATCH /api/issues/:id
+  // PATCH /api/issues/:id  (Mark Fixed or Pick Issue)
   if (pathname.startsWith('/api/issues/') && req.method === 'PATCH') {
     const id = pathname.split('/')[3];
     const body = await parseBody(req);
 
+    const update = {};
+
     if (body.status === 'fixed') {
+      update.status = 'fixed';
+      update.fixedAt = new Date().toISOString();
+    }
+
+    if (body.pickedBy) {
+      update.pickedBy = body.pickedBy.trim();
+      update.pickedAt = new Date().toISOString();
+    }
+
+    if (Object.keys(update).length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Nothing to update' }));
+      return;
+    }
+
+    try {
       const result = await issuesCollection.findOneAndUpdate(
         { id: id },
-        { $set: { status: 'fixed', fixedAt: new Date().toISOString() } },
+        { $set: update },
         { returnDocument: 'after' }
       );
 
-      if (!result) {
+      // Handle different MongoDB driver return formats
+      const updatedDoc = result?.value || result;
+
+      if (!updatedDoc) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Issue not found' }));
         return;
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify(updatedDoc));
+      return;
+    } catch (err) {
+      console.error('Update error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Update failed' }));
       return;
     }
-
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Invalid update' }));
-    return;
   }
 
   // GET /api/stats/advisor
@@ -229,7 +251,7 @@ async function handleApi(req, res, pathname) {
       createdAt: { $regex: '^' + date }
     }).sort({ createdAt: -1 }).toArray();
 
-    const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Issue Facing', 'Status', 'Created At', 'Fixed At'];
+    const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Issue Facing', 'Status', 'Picked By', 'Picked At', 'Created At', 'Fixed At'];
     const rows = issues.map(i => [
       i.id,
       `"${(i.email || '').replace(/"/g, '""')}"`,
@@ -237,6 +259,8 @@ async function handleApi(req, res, pathname) {
       `"${(i.chatLink || '').replace(/"/g, '""')}"`,
       `"${(i.issueFacing || '').replace(/"/g, '""')}"`,
       i.status,
+      `"${(i.pickedBy || '').replace(/"/g, '""')}"`,
+      i.pickedAt || '',
       i.createdAt,
       i.fixedAt || ''
     ]);
@@ -288,7 +312,6 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res, pathname);
 });
 
-// Start server after connecting to DB
 connectDB().then(() => {
   server.listen(PORT, () => {
     console.log(`V5 Issue Tracker by Shareque running on port ${PORT}`);
