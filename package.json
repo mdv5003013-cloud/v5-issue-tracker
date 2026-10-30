@@ -1,13 +1,15 @@
 {
   "name": "v5-issue-tracker",
   "version": "1.0.0",
-  "description": "V5 Issue Tracker by Shareque - Zomato inspired issue highlighter for advisors & supervisors",
+  "description": "V5 Issue Tracker by Shareque",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
-  "keywords": ["issue-tracker", "zomato", "shareque"],
-  "author": "Shareque",
-  "license": "ISC"
+  "dependencies": {
+    "mongodb": "^6.8.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
