@@ -18,6 +18,7 @@
     <div style="display:flex;align-items:center;gap:16px">
       <span class="badge" id="openBadge">0 open</span>
       <div class="nav-links">
+        <span id="supervisorNameDisplay" style="margin-right:12px;font-size:0.9rem;opacity:0.9"></span>
         <a href="/supervisor">Supervisor</a>
       </div>
     </div>
@@ -29,6 +30,19 @@
       <div class="mini-item">🍔<span>Food</span></div>
       <div class="mini-item">🎧<span>Agent</span></div>
       <div class="mini-item">💻<span>Tech</span></div>
+    </div>
+
+    <!-- Supervisor Name Section -->
+    <div class="card" id="nameCard" style="display:none">
+      <h2 class="card-title">Enter Your Name</h2>
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.95rem">
+        This name will be saved and used when you pick issues. You only need to enter it once.
+      </p>
+      <div class="form-group" style="max-width:320px">
+        <label for="supervisorNameInput">Your Name *</label>
+        <input type="text" id="supervisorNameInput" placeholder="Enter your full name">
+      </div>
+      <button class="btn btn-primary" id="saveNameBtn">Save Name</button>
     </div>
 
     <div class="notification" id="notification">
@@ -83,6 +97,7 @@
   <script>
     const toast = document.getElementById('toast');
     let lastOpenCount = 0;
+    let currentSupervisorName = localStorage.getItem('v5_supervisor_name') || '';
 
     function showToast(msg, type = 'success') {
       toast.textContent = msg;
@@ -108,12 +123,38 @@
         .replace(/"/g, '&quot;');
     }
 
-    // ===== Notification Bell Sound =====
+    // ===== Supervisor Name Logic =====
+    function updateNameUI() {
+      const nameCard = document.getElementById('nameCard');
+      const display = document.getElementById('supervisorNameDisplay');
+
+      if (currentSupervisorName) {
+        nameCard.style.display = 'none';
+        display.textContent = '👤 ' + currentSupervisorName;
+      } else {
+        nameCard.style.display = 'block';
+        display.textContent = '';
+      }
+    }
+
+    document.getElementById('saveNameBtn').addEventListener('click', () => {
+      const name = document.getElementById('supervisorNameInput').value.trim();
+      if (!name) {
+        showToast('Please enter your name', 'error');
+        return;
+      }
+      currentSupervisorName = name;
+      localStorage.setItem('v5_supervisor_name', name);
+      updateNameUI();
+      showToast('Name saved successfully!');
+    });
+
+    updateNameUI();
+
+    // ===== Sound =====
     function playNotificationSound() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-        // First bell
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1);
@@ -125,7 +166,6 @@
         osc1.start();
         osc1.stop(ctx.currentTime + 0.5);
 
-        // Second higher bell
         setTimeout(() => {
           const osc2 = ctx.createOscillator();
           const gain2 = ctx.createGain();
@@ -138,23 +178,7 @@
           osc2.start();
           osc2.stop(ctx.currentTime + 0.45);
         }, 200);
-
-        // Third soft bell
-        setTimeout(() => {
-          const osc3 = ctx.createOscillator();
-          const gain3 = ctx.createGain();
-          osc3.connect(gain3);
-          gain3.connect(ctx.destination);
-          osc3.type = 'sine';
-          osc3.frequency.setValueAtTime(1400, ctx.currentTime);
-          gain3.gain.setValueAtTime(0.5, ctx.currentTime);
-          gain3.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-          osc3.start();
-          osc3.stop(ctx.currentTime + 0.4);
-        }, 420);
-      } catch (e) {
-        console.log('Sound not supported');
-      }
+      } catch (e) {}
     }
 
     async function loadSummary() {
@@ -178,7 +202,6 @@
           notif.classList.add('hidden');
         }
 
-        // Play sound when new issue arrives
         if (data.totalOpen > lastOpenCount && lastOpenCount > 0) {
           showToast(`New issue received! Total open: ${data.totalOpen}`);
           playNotificationSound();
@@ -218,14 +241,20 @@
                 <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
                 <div><strong>Issue:</strong> ${escapeHtml(issue.issueFacing || '—')}</div>
                 ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank" rel="noopener">Open link</a></div>` : ''}
+                ${issue.pickedBy ? `<div style="color:#C41E3A;font-weight:600"><strong>Picked by:</strong> ${escapeHtml(issue.pickedBy)}</div>` : ''}
                 <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
               </div>
               <div class="issue-time">
                 Created: ${formatTime(issue.createdAt)}
+                ${issue.pickedAt ? ' · Picked: ' + formatTime(issue.pickedAt) : ''}
                 ${issue.fixedAt ? ' · Fixed: ' + formatTime(issue.fixedAt) : ''}
               </div>
             </div>
-            <div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${issue.status === 'open' && !issue.pickedBy ? `
+                <button class="btn btn-secondary btn-sm" onclick="pickIssue('${issue.id}')">
+                  Pick Issue
+                </button>` : ''}
               ${issue.status === 'open' ? `
                 <button class="btn btn-success btn-sm" onclick="markFixed('${issue.id}')">
                   Mark Fixed
@@ -236,6 +265,28 @@
       } catch (e) {
         document.getElementById('issueList').innerHTML = `
           <div class="empty-state"><div class="icon">⚠️</div><div>Failed to load issues</div></div>`;
+      }
+    }
+
+    async function pickIssue(id) {
+      if (!currentSupervisorName) {
+        showToast('Please enter and save your name first', 'error');
+        document.getElementById('nameCard').style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/issues/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pickedBy: currentSupervisorName })
+        });
+        if (!res.ok) throw new Error('Failed');
+        showToast('Issue picked by ' + currentSupervisorName);
+        loadIssues();
+        loadSummary();
+      } catch (e) {
+        showToast('Could not pick issue', 'error');
       }
     }
 
@@ -255,6 +306,7 @@
       }
     }
 
+    window.pickIssue = pickIssue;
     window.markFixed = markFixed;
 
     document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -271,11 +323,9 @@
       window.location.href = '/api/export?date=' + encodeURIComponent(date);
     });
 
-    // Initial load
     loadSummary();
     loadIssues();
 
-    // Auto refresh every 12 seconds
     setInterval(() => {
       loadSummary();
       if (document.getElementById('statusFilter').value === 'open' || !document.getElementById('statusFilter').value) {
