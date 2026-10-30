@@ -3,30 +3,30 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
+const { MongoClient, ObjectId } = require('mongodb');
 
-const PORT = process.env.PORT || process.env.V5_PORT || 3100;
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'issues.json');
+const PORT = process.env.PORT || 3100;
+const MONGODB_URI = process.env.MONGODB_URI || '';
 const PUBLIC_DIR = __dirname;
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, '[]', 'utf8');
-}
+let db = null;
+let issuesCollection = null;
 
-function readIssues() {
-  try {
-    const data = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (e) {
-    return [];
+// Connect to MongoDB
+async function connectDB() {
+  if (!MONGODB_URI) {
+    console.error('MONGODB_URI is not set!');
+    return;
   }
-}
-
-function writeIssues(issues) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(issues, null, 2), 'utf8');
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    db = client.db('v5tracker');
+    issuesCollection = db.collection('issues');
+    console.log('Connected to MongoDB successfully');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+  }
 }
 
 function generateId() {
@@ -34,8 +34,7 @@ function generateId() {
 }
 
 function getToday() {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
 }
 
 function parseBody(req) {
@@ -111,6 +110,12 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (!issuesCollection) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Database not connected yet' }));
+    return;
+  }
+
   // POST /api/issues
   if (pathname === '/api/issues' && req.method === 'POST') {
     const body = await parseBody(req);
@@ -125,7 +130,6 @@ async function handleApi(req, res, pathname) {
       return;
     }
 
-    const issues = readIssues();
     const newIssue = {
       id: generateId(),
       email,
@@ -136,8 +140,8 @@ async function handleApi(req, res, pathname) {
       createdAt: new Date().toISOString(),
       fixedAt: null
     };
-    issues.unshift(newIssue);
-    writeIssues(issues);
+
+    await issuesCollection.insertOne(newIssue);
 
     res.writeHead(201, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(newIssue));
@@ -148,11 +152,13 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/issues' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const { status, date, email } = parsed.query;
-    let issues = readIssues();
 
-    if (status) issues = issues.filter(i => i.status === status);
-    if (date) issues = issues.filter(i => i.createdAt.startsWith(date));
-    if (email) issues = issues.filter(i => i.email.toLowerCase() === email.toLowerCase());
+    let filter = {};
+    if (status) filter.status = status;
+    if (date) filter.createdAt = { $regex: '^' + date };
+    if (email) filter.email = { $regex: new RegExp('^' + email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') };
+
+    const issues = await issuesCollection.find(filter).sort({ createdAt: -1 }).toArray();
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(issues));
@@ -162,21 +168,28 @@ async function handleApi(req, res, pathname) {
   // PATCH /api/issues/:id
   if (pathname.startsWith('/api/issues/') && req.method === 'PATCH') {
     const id = pathname.split('/')[3];
-    const issues = readIssues();
-    const idx = issues.findIndex(i => i.id === id);
-    if (idx === -1) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Issue not found' }));
+    const body = await parseBody(req);
+
+    if (body.status === 'fixed') {
+      const result = await issuesCollection.findOneAndUpdate(
+        { id: id },
+        { $set: { status: 'fixed', fixedAt: new Date().toISOString() } },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Issue not found' }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
       return;
     }
-    const body = await parseBody(req);
-    if (body.status === 'fixed') {
-      issues[idx].status = 'fixed';
-      issues[idx].fixedAt = new Date().toISOString();
-    }
-    writeIssues(issues);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(issues[idx]));
+
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid update' }));
     return;
   }
 
@@ -189,11 +202,13 @@ async function handleApi(req, res, pathname) {
       res.end(JSON.stringify({ error: 'email required' }));
       return;
     }
+
     const today = getToday();
-    const issues = readIssues().filter(i =>
-      i.email.toLowerCase() === email.toLowerCase() &&
-      i.createdAt.startsWith(today)
-    );
+    const issues = await issuesCollection.find({
+      email: { $regex: new RegExp('^' + email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') },
+      createdAt: { $regex: '^' + today }
+    }).toArray();
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       email,
@@ -209,7 +224,10 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/export' && req.method === 'GET') {
     const parsed = url.parse(req.url, true);
     const date = parsed.query.date || getToday();
-    let issues = readIssues().filter(i => i.createdAt.startsWith(date));
+
+    const issues = await issuesCollection.find({
+      createdAt: { $regex: '^' + date }
+    }).sort({ createdAt: -1 }).toArray();
 
     const header = ['ID', 'Email ID', 'TL Name', 'Chat Link', 'Issue Facing', 'Status', 'Created At', 'Fixed At'];
     const rows = issues.map(i => [
@@ -236,11 +254,13 @@ async function handleApi(req, res, pathname) {
 
   // GET /api/stats/summary
   if (pathname === '/api/stats/summary' && req.method === 'GET') {
-    const issues = readIssues();
     const today = getToday();
-    const openToday = issues.filter(i => i.status === 'open' && i.createdAt.startsWith(today)).length;
-    const totalOpen = issues.filter(i => i.status === 'open').length;
-    const totalToday = issues.filter(i => i.createdAt.startsWith(today)).length;
+    const allIssues = await issuesCollection.find({}).toArray();
+
+    const openToday = allIssues.filter(i => i.status === 'open' && i.createdAt.startsWith(today)).length;
+    const totalOpen = allIssues.filter(i => i.status === 'open').length;
+    const totalToday = allIssues.filter(i => i.createdAt.startsWith(today)).length;
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ totalOpen, openToday, totalToday, lastUpdated: new Date().toISOString() }));
     return;
@@ -268,8 +288,9 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res, pathname);
 });
 
-server.listen(PORT, () => {
-  console.log(`V5 Issue Tracker by Shareque running at http://localhost:${PORT}`);
-  console.log(`Advisor:  http://localhost:${PORT}/advisor`);
-  console.log(`Supervisor: http://localhost:${PORT}/supervisor`);
+// Start server after connecting to DB
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`V5 Issue Tracker by Shareque running on port ${PORT}`);
+  });
 });
