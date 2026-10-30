@@ -83,7 +83,6 @@
   <script>
     const toast = document.getElementById('toast');
     let lastOpenCount = 0;
-    let pollTimer = null;
 
     function showToast(msg, type = 'success') {
       toast.textContent = msg;
@@ -109,160 +108,15 @@
         .replace(/"/g, '&quot;');
     }
 
-    async function loadSummary() {
+    // ===== Notification Bell Sound =====
+    function playNotificationSound() {
       try {
-        const res = await fetch('/api/stats/summary');
-        const data = await res.json();
-        document.getElementById('totalOpen').textContent = data.totalOpen;
-        document.getElementById('openToday').textContent = data.openToday;
-        document.getElementById('totalToday').textContent = data.totalToday;
-        document.getElementById('openBadge').textContent = data.totalOpen + ' open';
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const notif = document.getElementById('notification');
-        const notifText = document.getElementById('notifText');
-        if (data.openToday > 0) {
-          notif.classList.remove('hidden');
-          notifText.textContent = `${data.openToday} new issue(s) today still open. Please review & fix.`;
-        } else if (data.totalOpen > 0) {
-          notif.classList.remove('hidden');
-          notifText.textContent = `${data.totalOpen} open issue(s) pending.`;
-        } else {
-          notif.classList.add('hidden');
-        }
-
-        // Louder notification when new issue arrives
-        if (data.totalOpen > lastOpenCount && lastOpenCount > 0) {
-          showToast(`New issue received! Total open: ${data.totalOpen}`);
-          
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            oscillator.connect(gain);
-            gain.connect(ctx.destination);
-            
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-            gain.gain.setValueAtTime(0.9, ctx.currentTime);
-            
-            oscillator.start();
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-            oscillator.stop(ctx.currentTime + 0.8);
-            
-            setTimeout(() => {
-              const osc2 = ctx.createOscillator();
-              const gain2 = ctx.createGain();
-              osc2.connect(gain2);
-              gain2.connect(ctx.destination);
-              osc2.type = 'square';
-              osc2.frequency.setValueAtTime(1100, ctx.currentTime);
-              gain2.gain.setValueAtTime(0.9, ctx.currentTime);
-              osc2.start();
-              gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-              osc2.stop(ctx.currentTime + 0.6);
-            }, 300);
-          } catch (e) {
-            console.log('Sound not supported');
-          }
-        }
-        lastOpenCount = data.totalOpen;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function loadIssues() {
-      const status = document.getElementById('statusFilter').value;
-      const date = document.getElementById('dateFilter').value;
-      let url = '/api/issues?';
-      if (status) url += 'status=' + encodeURIComponent(status) + '&';
-      if (date) url += 'date=' + encodeURIComponent(date) + '&';
-
-      try {
-        const res = await fetch(url);
-        const issues = await res.json();
-        const list = document.getElementById('issueList');
-
-        if (!issues.length) {
-          list.innerHTML = `
-            <div class="empty-state">
-              <div class="icon">✅</div>
-              <div>No issues found for the selected filters.</div>
-            </div>`;
-          return;
-        }
-
-        list.innerHTML = issues.map(issue => `
-          <div class="issue-item ${issue.status}" data-id="${issue.id}">
-            <div>
-              <div class="issue-meta">
-                <div><strong>Email:</strong> ${escapeHtml(issue.email)}</div>
-                <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
-                <div><strong>Issue:</strong> ${escapeHtml(issue.issueFacing || '—')}</div>
-                ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank" rel="noopener">Open link</a></div>` : ''}
-                <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
-              </div>
-              <div class="issue-time">
-                Created: ${formatTime(issue.createdAt)}
-                ${issue.fixedAt ? ' · Fixed: ' + formatTime(issue.fixedAt) : ''}
-              </div>
-            </div>
-            <div>
-              ${issue.status === 'open' ? `
-                <button class="btn btn-success btn-sm" onclick="markFixed('${issue.id}')">
-                  Mark Fixed
-                </button>` : ''}
-            </div>
-          </div>
-        `).join('');
-      } catch (e) {
-        document.getElementById('issueList').innerHTML = `
-          <div class="empty-state"><div class="icon">⚠️</div><div>Failed to load issues</div></div>`;
-      }
-    }
-
-    async function markFixed(id) {
-      try {
-        const res = await fetch('/api/issues/' + id, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'fixed' })
-        });
-        if (!res.ok) throw new Error('Failed');
-        showToast('Issue marked as fixed');
-        loadIssues();
-        loadSummary();
-      } catch (e) {
-        showToast('Could not update issue', 'error');
-      }
-    }
-
-    window.markFixed = markFixed;
-
-    document.getElementById('refreshBtn').addEventListener('click', () => {
-      loadIssues();
-      loadSummary();
-      showToast('Refreshed');
-    });
-
-    document.getElementById('statusFilter').addEventListener('change', loadIssues);
-    document.getElementById('dateFilter').addEventListener('change', loadIssues);
-
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      const date = document.getElementById('dateFilter').value || new Date().toISOString().slice(0, 10);
-      window.location.href = '/api/export?date=' + encodeURIComponent(date);
-    });
-
-    loadSummary();
-    loadIssues();
-
-    pollTimer = setInterval(() => {
-      loadSummary();
-      if (document.getElementById('statusFilter').value === 'open' || !document.getElementById('statusFilter').value) {
-        loadIssues();
-      }
-    }, 15000);
-  </script>
-</body>
-</html>
+        // First bell
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1
