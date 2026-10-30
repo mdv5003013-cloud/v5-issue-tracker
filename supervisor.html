@@ -119,4 +119,169 @@
         osc1.connect(gain1);
         gain1.connect(ctx.destination);
         osc1.type = 'sine';
-        osc1
+        osc1.frequency.setValueAtTime(1200, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.85, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc1.start();
+        osc1.stop(ctx.currentTime + 0.5);
+
+        // Second higher bell
+        setTimeout(() => {
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1600, ctx.currentTime);
+          gain2.gain.setValueAtTime(0.7, ctx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+          osc2.start();
+          osc2.stop(ctx.currentTime + 0.45);
+        }, 200);
+
+        // Third soft bell
+        setTimeout(() => {
+          const osc3 = ctx.createOscillator();
+          const gain3 = ctx.createGain();
+          osc3.connect(gain3);
+          gain3.connect(ctx.destination);
+          osc3.type = 'sine';
+          osc3.frequency.setValueAtTime(1400, ctx.currentTime);
+          gain3.gain.setValueAtTime(0.5, ctx.currentTime);
+          gain3.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc3.start();
+          osc3.stop(ctx.currentTime + 0.4);
+        }, 420);
+      } catch (e) {
+        console.log('Sound not supported');
+      }
+    }
+
+    async function loadSummary() {
+      try {
+        const res = await fetch('/api/stats/summary');
+        const data = await res.json();
+        document.getElementById('totalOpen').textContent = data.totalOpen;
+        document.getElementById('openToday').textContent = data.openToday;
+        document.getElementById('totalToday').textContent = data.totalToday;
+        document.getElementById('openBadge').textContent = data.totalOpen + ' open';
+
+        const notif = document.getElementById('notification');
+        const notifText = document.getElementById('notifText');
+        if (data.openToday > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.openToday} new issue(s) today still open. Please review & fix.`;
+        } else if (data.totalOpen > 0) {
+          notif.classList.remove('hidden');
+          notifText.textContent = `${data.totalOpen} open issue(s) pending.`;
+        } else {
+          notif.classList.add('hidden');
+        }
+
+        // Play sound when new issue arrives
+        if (data.totalOpen > lastOpenCount && lastOpenCount > 0) {
+          showToast(`New issue received! Total open: ${data.totalOpen}`);
+          playNotificationSound();
+        }
+        lastOpenCount = data.totalOpen;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadIssues() {
+      const status = document.getElementById('statusFilter').value;
+      const date = document.getElementById('dateFilter').value;
+      let url = '/api/issues?';
+      if (status) url += 'status=' + encodeURIComponent(status) + '&';
+      if (date) url += 'date=' + encodeURIComponent(date) + '&';
+
+      try {
+        const res = await fetch(url);
+        const issues = await res.json();
+        const list = document.getElementById('issueList');
+
+        if (!issues.length) {
+          list.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">✅</div>
+              <div>No issues found for the selected filters.</div>
+            </div>`;
+          return;
+        }
+
+        list.innerHTML = issues.map(issue => `
+          <div class="issue-item ${issue.status}" data-id="${issue.id}">
+            <div>
+              <div class="issue-meta">
+                <div><strong>Email:</strong> ${escapeHtml(issue.email)}</div>
+                <div><strong>TL:</strong> ${escapeHtml(issue.tlName)}</div>
+                <div><strong>Issue:</strong> ${escapeHtml(issue.issueFacing || '—')}</div>
+                ${issue.chatLink ? `<div><strong>Chat:</strong> <a href="${escapeHtml(issue.chatLink)}" target="_blank" rel="noopener">Open link</a></div>` : ''}
+                <div><span class="status-badge status-${issue.status}">${issue.status}</span></div>
+              </div>
+              <div class="issue-time">
+                Created: ${formatTime(issue.createdAt)}
+                ${issue.fixedAt ? ' · Fixed: ' + formatTime(issue.fixedAt) : ''}
+              </div>
+            </div>
+            <div>
+              ${issue.status === 'open' ? `
+                <button class="btn btn-success btn-sm" onclick="markFixed('${issue.id}')">
+                  Mark Fixed
+                </button>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        document.getElementById('issueList').innerHTML = `
+          <div class="empty-state"><div class="icon">⚠️</div><div>Failed to load issues</div></div>`;
+      }
+    }
+
+    async function markFixed(id) {
+      try {
+        const res = await fetch('/api/issues/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'fixed' })
+        });
+        if (!res.ok) throw new Error('Failed');
+        showToast('Issue marked as fixed');
+        loadIssues();
+        loadSummary();
+      } catch (e) {
+        showToast('Could not update issue', 'error');
+      }
+    }
+
+    window.markFixed = markFixed;
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadIssues();
+      loadSummary();
+      showToast('Refreshed');
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', loadIssues);
+    document.getElementById('dateFilter').addEventListener('change', loadIssues);
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const date = document.getElementById('dateFilter').value || new Date().toISOString().slice(0, 10);
+      window.location.href = '/api/export?date=' + encodeURIComponent(date);
+    });
+
+    // Initial load
+    loadSummary();
+    loadIssues();
+
+    // Auto refresh every 12 seconds
+    setInterval(() => {
+      loadSummary();
+      if (document.getElementById('statusFilter').value === 'open' || !document.getElementById('statusFilter').value) {
+        loadIssues();
+      }
+    }, 12000);
+  </script>
+</body>
+</html>
